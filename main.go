@@ -69,20 +69,16 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handlers.HelloHandler)
-	mux.Handle("/login", handlers.LoginHandler(secret, user.DB))
+	mux.Handle("/login", handlers.LoginHandler(secret, users.DB))
 	mux.Handle("/secure", handlers.JWTAuthHandler(handlers.HelloHandler))
 	mux.Handle("/version", handlers.VersionHandler(version))
 	mux.HandleFunc("/healthz", health.HealthzHandler)
 	mux.HandleFunc("/healthz/status", health.HealthzStatusHandler)
 
-	httpServer := manners.NewServer()
-	httpServer.Addr = httpAddr
-	httpServer.Handler = handlers.LoggingHandler(mux)
-
 	errChan := make(chan error, 10)
 
 	go func() {
-		errChan <- httpServer.ListenAndServe()
+		errChan <- manners.ListenAndServe(httpAddr, handlers.LoggingHandler(mux))
 	}()
 
 	go func() {
@@ -100,7 +96,9 @@ func main() {
 			}
 		case s := <-signalChan:
 			log.Println(fmt.Sprintf("Captured %v. Exiting...", s))
-			httpServer.BlockingClose()
+			// version: ~0.4.0
+			// manners.Close() (Note that this does not block until all the requests are finished. Rather, the call to manners.ListenAndServe will stop blocking when all the requests are finished.)
+			manners.Close()
 			os.Exit(0)
 		}
 	}
